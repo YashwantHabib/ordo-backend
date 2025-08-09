@@ -15,25 +15,35 @@ generator client {
 
 // A registered user
 model User {
-  id        String    @id @default(cuid())
-  email     String    @unique
-  password  String
-  name      String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  teams     TeamMember[]
-  projects  Project[] @relation("OwnedProjects")
-  tasks     Task[]    @relation("AssignedTasks")
-  comments  Comment[]
+  id            String         @id @default(cuid())
+  email         String         @unique
+  password      String
+  name          String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  teams         TeamMember[]
+  projects      Project[]      @relation("OwnedProjects")
+  tasks         Task[]         @relation("AssignedTasks")
+  comments      Comment[]
+  refreshTokens RefreshToken[]
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  tokenHash String
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
 }
 
 // Many-to-many link between User and Team with roles
 model TeamMember {
-  id     String  @id @default(cuid())
+  id     String @id @default(cuid())
   role   String
-  team   Team    @relation(fields: [teamId], references: [id])
+  team   Team   @relation(fields: [teamId], references: [id])
   teamId String
-  user   User    @relation(fields: [userId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
   userId String
 
   @@unique([teamId, userId])
@@ -41,24 +51,24 @@ model TeamMember {
 
 // A team that owns projects
 model Team {
-  id        String        @id @default(cuid())
+  id        String       @id @default(cuid())
   name      String
   members   TeamMember[]
   projects  Project[]
-  createdAt DateTime      @default(now())
+  createdAt DateTime     @default(now())
 }
 
 // A project belongs to a team and has many tasks
 model Project {
-  id        String    @id @default(cuid())
-  name      String
+  id          String   @id @default(cuid())
+  name        String
   description String?
-  team      Team      @relation(fields: [teamId], references: [id])
-  teamId    String
-  owner     User      @relation("OwnedProjects", fields: [ownerId], references: [id])
-  ownerId   String
-  tasks     Task[]
-  createdAt DateTime  @default(now())
+  team        Team     @relation(fields: [teamId], references: [id])
+  teamId      String
+  owner       User     @relation("OwnedProjects", fields: [ownerId], references: [id])
+  ownerId     String
+  tasks       Task[]
+  createdAt   DateTime @default(now())
 }
 
 // Tasks inside projects
@@ -78,11 +88,11 @@ model Task {
 
 // Comments on tasks
 model Comment {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   content   String
-  author    User      @relation(fields: [authorId], references: [id])
+  author    User     @relation(fields: [authorId], references: [id])
   authorId  String
-  task      Task      @relation(fields: [taskId], references: [id])
+  task      Task     @relation(fields: [taskId], references: [id])
   taskId    String
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
 }
