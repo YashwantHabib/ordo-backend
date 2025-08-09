@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { verifyAccessToken } from "../utils/jwt";
 
-export function authRequired(req: Request, res: Response, next: NextFunction) {
+export function authenticate(req: Request, res: Response, next: NextFunction) {
   const token = req.cookies.access_token;
   if (!token) return res.status(401).json({ error: "Not authenticated" });
 

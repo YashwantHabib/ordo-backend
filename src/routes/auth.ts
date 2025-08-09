@@ -10,9 +10,17 @@ import crypto from "crypto";
 
 const router = Router();
 
-// Helper to hash refresh token before saving
 function hashToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+function getClientType(req: any) {
+  // Check header first, fallback to body, default 'web'
+  return (
+    req.headers["x-client-type"]?.toLowerCase() ||
+    req.body.clientType?.toLowerCase() ||
+    "web"
+  );
 }
 
 router.post("/register", async (req, res) => {
@@ -35,8 +43,9 @@ router.post("/register", async (req, res) => {
 
 router.post("/login", async (req, res) => {
   const { email, password } = req.body;
-  const user = await prisma.user.findUnique({ where: { email } });
+  const clientType = getClientType(req);
 
+  const user = await prisma.user.findUnique({ where: { email } });
   if (!user) return res.status(400).json({ error: "Invalid credentials" });
 
   const valid = await bcrypt.compare(password, user.password);
@@ -55,6 +64,16 @@ router.post("/login", async (req, res) => {
     },
   });
 
+  if (clientType === "mobile") {
+    // For mobile: send tokens in JSON
+    return res.json({
+      accessToken,
+      refreshToken,
+      message: "Logged in",
+    });
+  }
+
+  // For web: send tokens in cookies
   res
     .cookie("access_token", accessToken, {
       httpOnly: true,
@@ -72,7 +91,10 @@ router.post("/login", async (req, res) => {
 });
 
 router.post("/refresh", async (req, res) => {
-  const token = req.cookies.refresh_token;
+  const clientType = getClientType(req);
+  const token =
+    clientType === "mobile" ? req.body.refreshToken : req.cookies.refresh_token;
+
   if (!token) return res.status(401).json({ error: "No refresh token" });
 
   try {
@@ -85,11 +107,10 @@ router.post("/refresh", async (req, res) => {
     if (!stored)
       return res.status(403).json({ error: "Invalid refresh token" });
 
-    // Rotate token: delete old & issue new
+    // Rotate tokens: delete old, issue new
     await prisma.refreshToken.delete({ where: { id: stored.id } });
 
     const newRefreshToken = signRefreshToken({ userId: payload.userId });
-
     await prisma.refreshToken.create({
       data: {
         tokenHash: hashToken(newRefreshToken),
@@ -102,6 +123,16 @@ router.post("/refresh", async (req, res) => {
 
     const newAccessToken = signAccessToken({ userId: payload.userId });
 
+    if (clientType === "mobile") {
+      // For mobile: return tokens in JSON
+      return res.json({
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+        message: "Token refreshed",
+      });
+    }
+
+    // For web: set cookies
     res
       .cookie("access_token", newAccessToken, {
         httpOnly: true,
