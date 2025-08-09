@@ -13,18 +13,20 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// A registered user
 model User {
-  id            String         @id @default(cuid())
-  email         String         @unique
-  password      String
-  name          String
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  teams         TeamMember[]
-  projects      Project[]      @relation("OwnedProjects")
-  tasks         Task[]         @relation("AssignedTasks")
-  comments      Comment[]
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  lists           List[]    @relation("ListOwner")
+  invitesSent     Invite[]  @relation("InvitesSent")
+  invitesReceived Invite[]  @relation("InvitesReceived")
+  comments        Comment[]
+  collaborations  Collaboration[]
   refreshTokens RefreshToken[]
 }
 
@@ -37,62 +39,77 @@ model RefreshToken {
   expiresAt DateTime
 }
 
-// Many-to-many link between User and Team with roles
-model TeamMember {
-  id     String @id @default(cuid())
-  role   String
-  team   Team   @relation(fields: [teamId], references: [id])
-  teamId String
-  user   User   @relation(fields: [userId], references: [id])
-  userId String
-
-  @@unique([teamId, userId])
-}
-
-// A team that owns projects
-model Team {
-  id        String       @id @default(cuid())
-  name      String
-  members   TeamMember[]
-  projects  Project[]
-  createdAt DateTime     @default(now())
-}
-
-// A project belongs to a team and has many tasks
-model Project {
+model List {
   id          String   @id @default(cuid())
-  name        String
-  description String?
-  team        Team     @relation(fields: [teamId], references: [id])
-  teamId      String
-  owner       User     @relation("OwnedProjects", fields: [ownerId], references: [id])
-  ownerId     String
-  tasks       Task[]
-  createdAt   DateTime @default(now())
-}
-
-// Tasks inside projects
-model Task {
-  id          String    @id @default(cuid())
   title       String
   description String?
-  status      String    @default("todo") // todo, in-progress, done
-  dueDate     DateTime?
-  project     Project   @relation(fields: [projectId], references: [id])
-  projectId   String
-  assignee    User?     @relation("AssignedTasks", fields: [assigneeId], references: [id])
-  assigneeId  String?
-  comments    Comment[]
-  createdAt   DateTime  @default(now())
+  ownerId     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  owner        User           @relation("ListOwner", fields: [ownerId], references: [id])
+  tasks        Task[]
+  collaborators Collaboration[]
+  comments     Comment[]
+  invites       Invite[]
 }
 
-// Comments on tasks
+model Task {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  completed   Boolean  @default(false)
+  dueDate     DateTime?
+  listId      String
+  parentId    String? // for subtasks
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  list     List     @relation(fields: [listId], references: [id])
+  subtasks Task[]   @relation("Subtasks", fields: [], references: [])
+  parent   Task?    @relation("Subtasks", fields: [parentId], references: [id])
+}
+
+model Collaboration {
+  id        String   @id @default(cuid())
+  listId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  list List @relation(fields: [listId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([listId, userId])
+}
+
+model Invite {
+  id         String   @id @default(cuid())
+  senderId   String
+  receiverId String
+  listId     String
+  status     InviteStatus @default(PENDING)
+  createdAt  DateTime @default(now())
+
+  sender   User @relation("InvitesSent", fields: [senderId], references: [id])
+  receiver User @relation("InvitesReceived", fields: [receiverId], references: [id])
+  list     List @relation(fields: [listId], references: [id])
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
 model Comment {
   id        String   @id @default(cuid())
   content   String
-  author    User     @relation(fields: [authorId], references: [id])
-  authorId  String
-  task      Task     @relation(fields: [taskId], references: [id])
-  taskId    String
+  listId    String
+  userId    String
   createdAt DateTime @default(now())
+
+  list List @relation(fields: [listId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 }
